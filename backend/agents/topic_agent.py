@@ -90,7 +90,7 @@ class TopicAgent:
 
     def run(
         self,
-        #video_id: str,
+        video_id: str,
         comments: List[Dict],
         video_title: str,
         n_clusters: int = 6,
@@ -107,7 +107,7 @@ class TopicAgent:
         Returns:
             Dict with 'topics' key containing labeled cluster list
         """
-        logger.info(f"TopicAgent: Clustering {len(comments)} comments into {n_clusters} topics")
+        logger.info(f"TopicAgent: Clustering {len(comments)} comments into {n_clusters} topics video id {video_id}")
 
         if len(comments) < n_clusters:
             n_clusters = max(2, len(comments) // 2)
