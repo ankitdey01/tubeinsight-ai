@@ -9,6 +9,7 @@ print(f"[LOADING] {__file__}")
 import json
 import re
 import time
+#from typing import Optional
 from loguru import logger
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from openai import OpenAI, RateLimitError
@@ -19,6 +20,19 @@ settings = get_settings()
 
 
 class LLMClient:
+    """
+    Unified LLM client supporting both OpenRouter (cloud) and Ollama (local).
+
+    Automatically selects the backend based on configuration:
+    - If OLLAMA_BASE_URL is set, uses local Ollama
+    - Otherwise, uses OpenRouter with the configured API key
+
+    Features:
+    - Automatic retry with exponential backoff for rate limits
+    - Rate limiting to avoid API throttling
+    - JSON response parsing with markdown fence stripping
+    - Multi-turn conversation support for RAG
+    """
     def __init__(self):
         # Check if Ollama is configured
         if settings.ollama_base_url:
@@ -41,9 +55,9 @@ class LLMClient:
                 }
             )
             self.model = settings.llm_model
-            self._use_ollama = True if settings.ollama_base_url else False
-        
-        self._last_request_time = 0
+            self._use_ollama = False  # We're in the else branch, so Ollama is not configured
+
+        self._last_request_time: float = 0
         self._min_delay = 0.5 if self._use_ollama else 1.0  # Faster for local Ollama
 
     def _rate_limit(self):

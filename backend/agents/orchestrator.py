@@ -17,10 +17,6 @@ from loguru import logger
 
 from langgraph.graph import StateGraph, END, START
 
-# Ensure Ollama is running when orchestrator is imported
-from backend.core.ollama_startup import ensure_ollama_ready
-ensure_ollama_ready()
-
 from backend.agents.data_agent import DataAgent
 from backend.agents.sentiment_agent import SentimentAgent
 from backend.agents.topic_agent import TopicAgent
@@ -78,9 +74,7 @@ def run_data_agent(state: PipelineState) -> dict:
             "status": "data_complete",
         }
     except Exception as e:
-        logger.error(f"DataAgent failed: {e}")
-        import traceback
-        logger.error(traceback.format_exc())
+        logger.exception("DataAgent failed")
         return {"errors": [f"DataAgent: {str(e)}"], "status": "failed"}
 
 
@@ -88,15 +82,33 @@ def run_sentiment_agent(state: PipelineState) -> dict:
     logger.info("▶ SentimentAgent: Analyzing sentiment...")
     if state.get("status") == "failed":
         return {}
+
+    # Handle empty comments gracefully
+    clean_comments = state.get("clean_comments", [])
+    if not clean_comments:
+        logger.warning("No comments available for sentiment analysis, skipping...")
+        return {
+            "sentiment_result": {
+                "overall_sentiment": "neutral",
+                "sentiment_score": 0.0,
+                "sentiment_distribution": {"positive": 0, "negative": 0, "neutral": 100},
+                "vibe_score": 5,
+                "likeness_score": 5,
+                "comments_analyzed": 0,
+                "summary": "No comments available for analysis.",
+            },
+            "status": "sentiment_complete",
+        }
+
     try:
         agent = SentimentAgent()
         result = agent.run(
-            comments=state["clean_comments"],
+            comments=clean_comments,
             video_title=state["video_metadata"]["title"],
         )
         return {"sentiment_result": result, "status": "sentiment_complete"}
     except Exception as e:
-        logger.error(f"SentimentAgent failed: {e}")
+        logger.exception("SentimentAgent failed")
         return {"errors": [f"SentimentAgent: {str(e)}"], "status": "failed"}
 
 
@@ -104,16 +116,29 @@ def run_topic_agent(state: PipelineState) -> dict:
     logger.info("▶ TopicAgent: Clustering topics...")
     if state.get("status") == "failed":
         return {}
+
+    # Handle empty comments gracefully
+    clean_comments = state.get("clean_comments", [])
+    if not clean_comments:
+        logger.warning("No comments available for topic clustering, skipping...")
+        return {
+            "topic_result": {
+                "topics": [],
+                "total_comments": 0,
+            },
+            "status": "topics_complete",
+        }
+
     try:
         agent = TopicAgent()
         result = agent.run(
             video_id=state["video_id"],
-            comments=state["clean_comments"],
+            comments=clean_comments,
             video_title=state["video_metadata"]["title"],
         )
         return {"topic_result": result, "status": "topics_complete"}
     except Exception as e:
-        logger.error(f"TopicAgent failed: {e}")
+        logger.exception("TopicAgent failed")
         return {"errors": [f"TopicAgent: {str(e)}"], "status": "failed"}
 
 
@@ -121,17 +146,22 @@ def run_report_agent(state: PipelineState) -> dict:
     logger.info("▶ ReportAgent: Generating insight report...")
     if state.get("status") == "failed":
         return {}
+
+    # Handle empty comments gracefully
+    clean_comments = state.get("clean_comments", [])
+    total_comments = len(clean_comments) if clean_comments else 0
+
     try:
         agent = ReportAgent()
         report = agent.run(
             video_metadata=state["video_metadata"],
             sentiment=state["sentiment_result"],
             topics=state["topic_result"],
-            total_comments=len(state["clean_comments"]),
+            total_comments=total_comments,
         )
         return {"report": report, "status": "complete"}
     except Exception as e:
-        logger.error(f"ReportAgent failed: {e}")
+        logger.exception("ReportAgent failed")
         return {"errors": [f"ReportAgent: {str(e)}"], "status": "failed"}
 
 

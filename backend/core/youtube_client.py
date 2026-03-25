@@ -10,7 +10,7 @@ print(f"[LOADING] {__file__}")
 import re
 import json
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List, Dict
 from loguru import logger
 from tenacity import retry, stop_after_attempt, wait_exponential
 
@@ -24,7 +24,34 @@ settings = get_settings()
 
 
 class YouTubeClient:
-    def __init__(self):
+    """
+    YouTube Data API v3 wrapper with built-in error handling.
+
+    Features:
+    - URL parsing for videos, channels, and handles
+    - Automatic retry with exponential backoff
+    - Comment caching to disk
+    - Graceful handling of disabled comments
+
+    Raises:
+        ValueError: If YOUTUBE_API_KEY is not configured
+    """
+
+    def __init__(self) -> None:
+        # Validate API key early to provide clear error messages
+        if not settings.youtube_api_key:
+            raise ValueError(
+                "YOUTUBE_API_KEY is not configured. "
+                "Please set it in your .env file or environment variables."
+            )
+
+        # Check for placeholder values
+        if settings.youtube_api_key.startswith("your_") or settings.youtube_api_key == "":
+            raise ValueError(
+                "YOUTUBE_API_KEY appears to be a placeholder value. "
+                "Please set a valid API key in your .env file."
+            )
+
         self.service = build("youtube", "v3", developerKey=settings.youtube_api_key)
         self.raw_dir = Path(settings.raw_data_dir)
         self.raw_dir.mkdir(parents=True, exist_ok=True)
@@ -32,7 +59,21 @@ class YouTubeClient:
     # ─── URL Parsing ──────────────────────────────────────────────────────────
 
     def extract_video_id(self, url: str) -> Optional[str]:
-        """Extract video ID from any YouTube URL format."""
+        """
+        Extract video ID from any YouTube URL format.
+
+        Supports:
+        - youtube.com/watch?v=...
+        - youtu.be/...
+        - youtube.com/embed/...
+        - youtube.com/shorts/...
+
+        Args:
+            url: YouTube URL in any supported format
+
+        Returns:
+            11-character video ID or None if not found
+        """
         patterns = [
             r"(?:v=|youtu\.be/|embed/|v/|shorts/)([a-zA-Z0-9_-]{11})",
         ]
@@ -43,7 +84,19 @@ class YouTubeClient:
         return None
 
     def extract_channel_id(self, url: str) -> Optional[str]:
-        """Resolve channel URL to a channel ID."""
+        """
+        Resolve channel URL to a channel ID.
+
+        Supports:
+        - youtube.com/@handle format
+        - youtube.com/channel/UC... format
+
+        Args:
+            url: YouTube channel URL
+
+        Returns:
+            Channel ID (UC...) or None if not found
+        """
         # Handle @handle format
         handle_match = re.search(r"@([\w.-]+)", url)
         if handle_match:
@@ -72,8 +125,22 @@ class YouTubeClient:
     # ─── Video Fetching ───────────────────────────────────────────────────────
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
-    def get_channel_videos(self, channel_id: str, max_results: int = None) -> list[dict]:
-        """Fetch the latest N videos from a channel."""
+    def get_channel_videos(self, channel_id: str, max_results: Optional[int] = None) -> List[Dict]:
+        """
+        Fetch the latest N videos from a channel.
+
+        Args:
+            channel_id: YouTube channel ID (UC...)
+            max_results: Maximum videos to fetch (default from settings)
+
+        Returns:
+            List of video dicts with keys: video_id, title, published_at,
+            thumbnail, channel_id, channel_name
+
+        Raises:
+            ValueError: If channel not found
+            HttpError: On API errors (after 3 retries)
+        """
         max_results = max_results or settings.max_videos_per_channel
         logger.info(f"Fetching latest {max_results} videos for channel {channel_id}")
 
@@ -125,8 +192,21 @@ class YouTubeClient:
             raise
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
-    def get_video_metadata(self, video_id: str) -> dict:
-        """Fetch metadata for a single video."""
+    def get_video_metadata(self, video_id: str) -> Dict:
+        """
+        Fetch metadata for a single video.
+
+        Args:
+            video_id: YouTube video ID (11 characters)
+
+        Returns:
+            Dict with keys: video_id, title, description, channel_id,
+            channel_name, published_at, thumbnail, view_count, like_count,
+            comment_count, url
+
+        Raises:
+            ValueError: If video not found
+        """
         response = self.service.videos().list(
             part="snippet,statistics,contentDetails",
             id=video_id
@@ -156,10 +236,21 @@ class YouTubeClient:
     # ─── Comment Fetching ─────────────────────────────────────────────────────
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
-    def get_video_comments(self, video_id: str, max_comments: int = None) -> list[dict]:
+    def get_video_comments(self, video_id: str, max_comments: Optional[int] = None) -> List[Dict]:
         """
         Fetch top-level comments for a video.
-        Returns cleaned comment objects ready for analysis.
+
+        Args:
+            video_id: YouTube video ID
+            max_comments: Maximum comments to fetch (default from settings)
+
+        Returns:
+            List of comment dicts with keys: comment_id, video_id, text,
+            author, like_count, published_at, reply_count.
+            Returns empty list if comments are disabled.
+
+        Raises:
+            HttpError: On API errors other than 403 (comments disabled)
         """
         max_comments = max_comments or settings.max_comments_per_video
         logger.info(f"Fetching up to {max_comments} comments for video {video_id}")

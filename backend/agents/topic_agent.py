@@ -3,11 +3,12 @@ backend/agents/topic_agent.py
 ───────────────────────────────
 Topic Clustering Agent.
 Uses KMeans on comment embeddings to discover themes,
-then uses Claude to label each cluster meaningfully.
+then uses LLM to label each cluster meaningfully.
 """
 print(f"[LOADING] {__file__}")
 
 import json
+from typing import List, Dict
 import numpy as np
 from loguru import logger
 from sklearn.cluster import KMeans
@@ -20,19 +21,36 @@ from config.prompts import TOPIC_SYSTEM, TOPIC_USER
 
 
 class TopicAgent:
-    def __init__(self):
+    """
+    Topic discovery agent using embedding-based clustering.
+
+    Discovers themes in YouTube comments by:
+    1. Computing embeddings for all comments
+    2. Clustering using KMeans on normalized embeddings
+    3. Labeling clusters with LLM for human-readable topics
+
+    Falls back to generic labels if LLM labeling fails.
+    """
+
+    def __init__(self) -> None:
         self.vs = VectorStore()
         self.embedder = EmbeddingClient()
         self.llm = LLMClient()
 
     def _cluster_comments(
         self,
-        comments: list[dict],
+        comments: List[Dict],
         n_clusters: int = 6,
-    ) -> list[dict]:
+    ) -> List[Dict]:
         """
         KMeans clustering on comment embeddings.
-        Returns list of cluster dicts with representative comments.
+
+        Args:
+            comments: List of comment dicts with 'text' key
+            n_clusters: Target number of clusters
+
+        Returns:
+            List of cluster dicts with id, size, representative_comments
         """
         texts = [c["text"] for c in comments]
 
@@ -47,14 +65,14 @@ class TopicAgent:
         labels = km.fit_predict(X)
 
         # Group comments by cluster
-        clusters = {}
-        for i, (comment, label) in enumerate(zip(comments, labels)):
+        clusters: Dict[int, List[Dict]] = {}
+        for comment, label in zip(comments, labels):
             if label not in clusters:
                 clusters[label] = []
             clusters[label].append(comment)
 
         # Build cluster objects with representative samples
-        cluster_list = []
+        cluster_list: List[Dict] = []
         for cluster_id, cluster_comments in clusters.items():
             # Sort by like count to pick best representatives
             sorted_c = sorted(cluster_comments, key=lambda x: x.get("like_count", 0), reverse=True)
@@ -72,12 +90,23 @@ class TopicAgent:
 
     def run(
         self,
-        video_id: str,
-        comments: list[dict],
+        #video_id: str,
+        comments: List[Dict],
         video_title: str,
         n_clusters: int = 6,
-    ) -> dict:
-        """Cluster comments and label them with Claude."""
+    ) -> Dict:
+        """
+        Cluster comments and label them with LLM.
+
+        Args:
+            video_id: YouTube video ID
+            comments: List of comment dicts
+            video_title: Title for context in labeling
+            n_clusters: Target number of topic clusters
+
+        Returns:
+            Dict with 'topics' key containing labeled cluster list
+        """
         logger.info(f"TopicAgent: Clustering {len(comments)} comments into {n_clusters} topics")
 
         if len(comments) < n_clusters:
@@ -87,7 +116,7 @@ class TopicAgent:
         raw_clusters = self._cluster_comments(comments, n_clusters=n_clusters)
         logger.debug(f"Formed {len(raw_clusters)} clusters")
 
-        # Label with Claude
+        # Label with LLM
         try:
             clusters_text = json.dumps(raw_clusters, indent=2)
             result = self.llm.complete_json(
@@ -96,14 +125,14 @@ class TopicAgent:
                     clusters=clusters_text,
                 ),
                 system_prompt=TOPIC_SYSTEM,
-                max_tokens=1200,  # Reduced for rate limits
+                max_tokens=1200,
             )
             logger.success(f"TopicAgent: Identified {len(result.get('topics', []))} topics")
             return result
         except Exception as e:
-            logger.warning(f"LLM topic labeling failed: {e}, using fallback")
+            logger.exception("LLM topic labeling failed, using fallback")
             # Fallback: return clusters without LLM labels
-            fallback_topics = []
+            fallback_topics: List[Dict] = []
             for i, cluster in enumerate(raw_clusters[:6]):
                 fallback_topics.append({
                     "id": cluster["id"],

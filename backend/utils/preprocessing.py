@@ -8,13 +8,15 @@ print(f"[LOADING] {__file__}")
 
 import re
 import html
+from typing import List, Dict
 from loguru import logger
 
 
 # ─── Filters ──────────────────────────────────────────────────────────────────
 
 MIN_COMMENT_LENGTH = 4     # Skip very short comments like "nice", "👍"
-MAX_COMMENT_LENGTH = 1000      # Truncate very long comments
+MAX_COMMENT_LENGTH = 1000  # Truncate very long comments
+
 SPAM_PATTERNS = [
     r"check out my channel",
     r"subscribe to me",
@@ -23,9 +25,36 @@ SPAM_PATTERNS = [
     r"^\d+$",                  # Pure numbers
 ]
 
+# Common emoji Unicode ranges (covers most standard emojis)
+# This is more targeted than removing all non-word characters
+EMOJI_PATTERN = re.compile(
+    "["
+    "\U0001F600-\U0001F64F"  # Emoticons
+    "\U0001F300-\U0001F5FF"  # Misc Symbols and Pictographs
+    "\U0001F680-\U0001F6FF"  # Transport and Map
+    "\U0001F700-\U0001F77F"  # Alchemical Symbols
+    "\U0001F780-\U0001F7FF"  # Geometric Shapes Extended
+    "\U0001F800-\U0001F8FF"  # Supplemental Arrows-C
+    "\U0001F900-\U0001F9FF"  # Supplemental Symbols and Pictographs
+    "\U0001FA00-\U0001FA6F"  # Chess Symbols
+    "\U0001FA70-\U0001FAFF"  # Symbols and Pictographs Extended-A
+    "\U00002702-\U000027B0"  # Dingbats
+    "\U00002600-\U000026FF"  # Misc symbols (★, ☀, etc.)
+    "\U0001F1E0-\U0001F1FF"  # Flags (iOS)
+    "]+",
+    flags=re.UNICODE
+)
+
 
 def clean_text(text: str) -> str:
-    """Clean a single comment text."""
+    """
+    Clean a single comment text.
+
+    - Decodes HTML entities
+    - Removes URLs
+    - Normalizes excessive newlines
+    - Truncates to max length
+    """
     # Decode HTML entities
     text = html.unescape(text)
 
@@ -42,7 +71,14 @@ def clean_text(text: str) -> str:
 
 
 def is_valid_comment(text: str) -> bool:
-    """Return True if comment is worth keeping."""
+    """
+    Return True if comment is worth keeping for analysis.
+
+    Filters out:
+    - Very short comments
+    - Spam patterns (self-promotion, "first!", etc.)
+    - Pure emoji comments (no meaningful text content)
+    """
     if len(text) < MIN_COMMENT_LENGTH:
         return False
 
@@ -52,18 +88,29 @@ def is_valid_comment(text: str) -> bool:
         if re.search(pattern, lower):
             return False
 
-    # Skip pure emoji comments
-    no_emoji = re.sub(r"[^\w\s]", "", text)
-    if len(no_emoji.strip()) < 5:
+    # Skip pure emoji comments by removing emojis and checking remaining content
+    # Use dedicated emoji pattern instead of removing all punctuation
+    text_without_emojis = EMOJI_PATTERN.sub("", text)
+    # Also remove common repeated symbols that aren't meaningful (e.g., "!!!", "...")
+    text_clean = re.sub(r"[!?.,;:'\"\-_=+*#@&^%$<>(){}[\]\\|`~]+", "", text_without_emojis)
+    text_clean = text_clean.strip()
+
+    # If after removing emojis and punctuation, there's very little text, skip it
+    if len(text_clean) < 3:
         return False
 
     return True
 
 
-def preprocess_comments(comments: list[dict]) -> list[dict]:
+def preprocess_comments(comments: List[Dict]) -> List[Dict]:
     """
     Clean and filter a list of raw comment objects.
-    Returns filtered list ready for embedding.
+
+    Args:
+        comments: List of comment dicts with at least a "text" key
+
+    Returns:
+        Filtered and cleaned list ready for embedding
     """
     cleaned = []
     skipped = 0
@@ -86,13 +133,20 @@ def preprocess_comments(comments: list[dict]) -> list[dict]:
 
 
 def chunk_comments_for_llm(
-    comments: list[dict],
+    comments: List[Dict],
     max_chars: int = 8000,
     max_per_chunk: int = 50,
-) -> list[str]:
+) -> List[str]:
     """
     Batch comments into chunks that fit in an LLM context window.
-    Returns list of formatted text blocks.
+
+    Args:
+        comments: List of comment dicts with "text" key
+        max_chars: Maximum characters per chunk
+        max_per_chunk: Maximum comments per chunk
+
+    Returns:
+        List of formatted text blocks ready for LLM processing
     """
     chunks = []
     current_chunk = []

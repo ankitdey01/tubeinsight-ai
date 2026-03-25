@@ -33,6 +33,18 @@ _PROCESS_FALLBACK: dict[str, dict] = {}
 
 
 class VectorStore:
+    """
+    ChromaDB-backed vector store for comment embeddings.
+
+    Each video gets its own collection for isolated retrieval.
+    Includes in-memory fallback when ChromaDB is unavailable or fails.
+
+    Features:
+    - Lazy client initialization with error handling
+    - Automatic fallback to in-memory storage
+    - Cosine similarity search for semantic retrieval
+    - Channel-level queries across multiple videos
+    """
     def __init__(self):
         self.persist_dir = Path(settings.chroma_persist_dir)
         self.persist_dir.mkdir(parents=True, exist_ok=True)
@@ -90,9 +102,10 @@ class VectorStore:
             # Delete existing collection if it exists (fresh ingest)
             try:
                 self.client.delete_collection(collection_name)
-                logger.info(f"Deleted existing collection {collection_name}")
-            except Exception:
-                pass
+                logger.debug(f"Deleted existing collection {collection_name}")
+            except Exception as e:
+                # Collection doesn't exist yet, which is expected for new videos
+                logger.debug(f"No existing collection to delete for {collection_name}: {type(e).__name__}")
 
             collection = self.client.create_collection(
                 name=collection_name,
@@ -295,7 +308,8 @@ class VectorStore:
         try:
             self.client.get_collection(self._collection_name(video_id))
             return True
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Collection for video {video_id} not found: {type(e).__name__}")
             return False
 
     def get_all_comments(self, video_id: str) -> list[str]:
@@ -312,5 +326,6 @@ class VectorStore:
             collection = self.client.get_collection(collection_name)
             results = collection.get(include=["documents"])
             return results["documents"]
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Could not get comments for video {video_id}: {type(e).__name__}")
             return []
