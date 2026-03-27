@@ -21,13 +21,14 @@ start "TubeInsight Backend" cmd /c "uvicorn api:app --reload --host 0.0.0.0 --po
 timeout /t 3 /nobreak >nul
 
 :: Start frontend in new window
-echo [2/2] Starting Next.js frontend on http://localhost:3000
+echo [2/3] Starting Next.js frontend on http://localhost:3000
 start "TubeInsight Frontend" cmd /c "cd frontend && npm run dev"
 
 echo.
-echo Both services starting...
-echo Backend: http://localhost:8000
-echo Frontend: http://localhost:3000
+echo All services starting...
+echo Ollama:    http://localhost:11434
+echo Backend:   http://localhost:8000
+echo Frontend:  http://localhost:3000
 echo.
 echo Press Ctrl+C in each window to stop.
 pause
