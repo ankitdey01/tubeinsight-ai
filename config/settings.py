@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     ollama_model: str = Field("llama3.2", env="OLLAMA_MODEL")
     
     # OpenRouter model ID (used if OLLAMA_BASE_URL is not set)
-    llm_model: str = Field("anthropic/claude-3.5-sonnet", env="LLM_MODEL")
+    #llm_model: str = Field("anthropic/claude-3.5-sonnet", env="LLM_MODEL")
 
     # ── Storage ───────────────────────────────────────────────────────────────
     chroma_persist_dir: str = Field("./data/vectorstore", env="CHROMA_PERSIST_DIR")
