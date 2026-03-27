@@ -100,5 +100,4 @@ Analyzed {total_comments} comments.
 {chr(10).join(f"- {name}" for name in topic_names) if topic_names else "- No specific themes identified"}
 
 ## Notes
-*This is a basic automated report. Full AI-generated insights are temporarily unavailable.*
 """

@@ -3,7 +3,7 @@ backend/agents/rag_agent.py
 ─────────────────────────────
 RAG Chat Agent.
 Retrieves relevant comments via semantic search,
-then generates grounded answers using Claude.
+then generates grounded answers using LLM.
 Uses single-turn context to stay fully grounded.
 """
 print(f"[LOADING] {__file__}")
