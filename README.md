@@ -5,7 +5,8 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
 [![LangGraph](https://img.shields.io/badge/orchestration-LangGraph-green)](https://github.com/langchain-ai/langgraph)
 [![LLM](https://img.shields.io/badge/LLM-OpenRouter%20%7C%20Ollama-orange)](https://openrouter.ai/)
-[![Streamlit](https://img.shields.io/badge/frontend-Streamlit-red)](https://streamlit.io/)
+[![Next.js](https://img.shields.io/badge/frontend-Next.js-black)](https://nextjs.org/)
+[![FastAPI](https://img.shields.io/badge/backend-FastAPI-teal)](https://fastapi.tiangolo.com/)
 
 ---
 
@@ -25,16 +26,19 @@ TubeInsight AI is a creator intelligence dashboard that transforms raw YouTube c
 
 ```
 tubeinsight-ai/
-├── frontend/                   # Streamlit UI
-│   ├── app.py                  # Main entry point
-│   ├── pages/                  # Multi-page Streamlit
-│   │   ├── 01_channel_view.py
-│   │   ├── 02_video_analysis.py
-│   │   └── 03_ai_chat.py
-│   └── components/             # Reusable UI components
-│       ├── charts.py
-│       ├── metrics.py
-│       └── sidebar.py
+├── frontend/                   # Next.js + shadcn/ui frontend
+│   ├── app/                    # Next.js app router
+│   │   ├── page.tsx            # Home page (URL input)
+│   │   ├── layout.tsx          # Root layout
+│   │   └── dashboard/          # Dashboard page
+│   │       └── page.tsx
+│   ├── components/             # React components
+│   │   └── ui/                 # shadcn/ui components
+│   ├── lib/
+│   │   └── utils.ts            # Utility functions
+│   ├── package.json
+│   ├── tailwind.config.ts
+│   └── next.config.js
 │
 ├── backend/
 │   ├── agents/                 # LangGraph agents
@@ -45,45 +49,22 @@ tubeinsight-ai/
 │   │   ├── rag_agent.py        # RAG chat interface
 │   │   └── report_agent.py     # Insight report generation
 │   │
-│   ├── core/                   # Core business logic
-│   │   ├── youtube_client.py   # YouTube API wrapper
-│   │   ├── embeddings.py       # Embedding pipeline
-│   │   ├── vectorstore.py      # ChromaDB interface
-│   │   └── llm_client.py       # OpenRouter / Ollama wrapper
-│   │
-│   ├── api/                    # FastAPI layer (optional, for decoupling)
-│   │   ├── main.py
-│   │   ├── routes/
-│   │   └── schemas.py
-│   │
-│   └── utils/
-│       ├── preprocessing.py    # Comment cleaning
-│       ├── cache.py            # Redis / pickle cache
-│       └── logger.py
+│   └── core/                   # Core business logic
+│       ├── youtube_client.py   # YouTube API wrapper
+│       ├── embeddings.py       # Embedding pipeline
+│       ├── vectorstore.py      # ChromaDB interface
+│       └── llm_client.py       # OpenRouter / Ollama wrapper
 │
+├── api.py                      # FastAPI backend entry point
 ├── data/
-│   ├── raw/                    # Raw API responses (JSON)
-│   ├── processed/              # Cleaned comment DataFrames
 │   └── vectorstore/            # ChromaDB persistent storage
 │
 ├── config/
 │   ├── settings.py             # Pydantic settings
 │   └── prompts.py              # All LLM prompt templates
 │
-├── tests/
-│   ├── unit/
-│   └── integration/
-│
-├── scripts/
-│   ├── ingest_channel.py       # CLI: ingest a channel
-│   └── ingest_video.py         # CLI: ingest a single video
-│
-├── docs/
-│   └── architecture.md
-│
 ├── .env.example
 ├── requirements.txt
-├── pyproject.toml
 └── README.md
 ```
 
@@ -96,16 +77,24 @@ tubeinsight-ai/
 git clone https://github.com/yourname/tubeinsight-ai
 cd tubeinsight-ai
 
-# 2. Install dependencies
+# 2. Install Python dependencies
 pip install -r requirements.txt
 
-# 3. Configure environment
+# 3. Install frontend dependencies
+cd frontend && npm install && cd ..
+
+# 4. Configure environment
 cp .env.example .env
 # Fill in: YOUTUBE_API_KEY and OPENROUTER_API_KEY
 # Or set OLLAMA_BASE_URL to use a local model instead
 
-# 4. Run the app
-streamlit run frontend/app.py
+# 5. Run the backend (in one terminal)
+uvicorn api:app --reload
+
+# 6. Run the frontend (in another terminal)
+cd frontend && npm run dev
+
+# 7. Open http://localhost:3000 in your browser
 ```
 
 ---
@@ -113,7 +102,7 @@ streamlit run frontend/app.py
 ## 🤖 Agent Architecture
 
 ```
-User Input (channel URL / video URL)
+User Input (video URL)
         │
         ▼
   Orchestrator Agent  (LangGraph StateGraph)
@@ -151,7 +140,8 @@ MAX_COMMENTS_PER_VIDEO=500
 
 | Layer | Tech |
 |---|---|
-| Frontend | Streamlit |
+| Frontend | Next.js 14 + shadcn/ui + Tailwind CSS |
+| Backend API | FastAPI + uvicorn |
 | Agent Orchestration | LangGraph |
 | LLM | OpenRouter or local Ollama |
 | Embeddings | sentence-transformers `all-MiniLM-L6-v2` |
@@ -159,6 +149,33 @@ MAX_COMMENTS_PER_VIDEO=500
 | YouTube Data | YouTube Data API v3 |
 | Sentiment Baseline | VADER + LLM refinement |
 | Topic Modeling | BERTopic / KMeans |
-| API Layer | FastAPI |
 | Caching | diskcache |
 | Config | Pydantic Settings |
+
+---
+
+## 🚀 Run Instructions
+
+### Backend
+```bash
+uvicorn api:app --reload
+```
+The API will be available at `http://localhost:8000`
+
+### Frontend
+```bash
+cd frontend && npm run dev
+```
+The app will be available at `http://localhost:3000`
+
+### API Endpoints
+
+- `GET /health` - Health check
+- `POST /analyze` - Analyze a YouTube video (accepts `{ "youtube_url": "..." }`)
+- `POST /chat` - Chat with RAG (accepts `{ "query": "..." }`)
+
+---
+
+## 📄 License
+
+MIT License - feel free to use this for your own projects!
