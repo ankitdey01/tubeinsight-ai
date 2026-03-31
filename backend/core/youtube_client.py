@@ -233,6 +233,53 @@ class YouTubeClient:
             "url": f"https://youtube.com/watch?v={video_id}",
         }
 
+    def get_channel_details(self, channel_id: str) -> Dict:
+        """
+        Fetch channel details including subscriber count.
+
+        Args:
+            channel_id: YouTube channel ID (UC...)
+
+        Returns:
+            Dict with keys: channel_id, channel_name, subscriber_count,
+            video_count, view_count
+        """
+        try:
+            response = self.service.channels().list(
+                part="snippet,statistics",
+                id=channel_id
+            ).execute()
+
+            if not response.get("items"):
+                return {
+                    "channel_id": channel_id,
+                    "channel_name": "Unknown",
+                    "subscriber_count": 0,
+                    "video_count": 0,
+                    "view_count": 0,
+                }
+
+            item = response["items"][0]
+            snippet = item["snippet"]
+            stats = item.get("statistics", {})
+
+            return {
+                "channel_id": channel_id,
+                "channel_name": snippet["title"],
+                "subscriber_count": int(stats.get("subscriberCount", 0)),
+                "video_count": int(stats.get("videoCount", 0)),
+                "view_count": int(stats.get("viewCount", 0)),
+            }
+        except HttpError as e:
+            logger.error(f"Failed to fetch channel details: {e}")
+            return {
+                "channel_id": channel_id,
+                "channel_name": "Unknown",
+                "subscriber_count": 0,
+                "video_count": 0,
+                "view_count": 0,
+            }
+
     # ─── Comment Fetching ─────────────────────────────────────────────────────
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
