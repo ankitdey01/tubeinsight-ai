@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     raw_data_dir: str = Field("./data/raw", env="RAW_DATA_DIR")
 
     # ── Ingestion Limits ──────────────────────────────────────────────────────
-    max_comments_per_video: int = Field(500, env="MAX_COMMENTS_PER_VIDEO")
+    max_comments_per_video: int = Field(100, env="MAX_COMMENTS_PER_VIDEO")
     max_videos_per_channel: int = Field(10, env="MAX_VIDEOS_PER_CHANNEL")
 
     # ── App ───────────────────────────────────────────────────────────────────

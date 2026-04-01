@@ -14,7 +14,7 @@ Your job is to analyze a batch of comments using AI-powered insights and return 
 You MUST respond with valid JSON only. No explanation, no markdown fences.
 """
 
-SENTIMENT_USER = """Analyze the following YouTube comments for the video titled: "{video_title}"
+SENTIMENT_USER = """Analyze the following YouTube comments for the video titled: "{video_title}. Keep in mind that this is a YouTube video and the comments are from the audience, and provide insights based on context of the video title."
 
 Comments:
 {comments}
@@ -28,8 +28,8 @@ Return a JSON object with this exact structure:
     "negative": <percentage 0-100>,
     "neutral": <percentage 0-100>
   }},
-  "vibe_score": <int 1-10, overall energy/excitement level>,
-  "likeness_score": <int 1-10, how much viewers seem to enjoy the content>,
+  "vibe_score": <int 1-10, overall energy/excitement level based on context and comments>,
+  "likeness_score": <int 1-10, how much viewers seem to enjoy the content based on context and comments>,
   "emotion_breakdown": {{
     "joy": <percentage>,
     "anger": <percentage>,
@@ -38,14 +38,14 @@ Return a JSON object with this exact structure:
     "love": <percentage>,
     "neutral": <percentage>
   }},
-  "top_praises": [<list of up to 5 specific things viewers praised>],
-  "top_criticisms": [<list of up to 5 specific things viewers criticized>],
-  "top_questions": [<list of up to 5 questions viewers are asking>],
-  "toxicity_level": "low" | "medium" | "high",
-  "summary": "<2-3 sentence plain English summary of the overall audience reaction>"
+  "top_praises": [<list of up to 5 specific things viewers praised based on context>],
+  "top_criticisms": [<list of up to 5 specific things viewers criticized based on context>],
+  "top_questions": [<list of up to 5 questions viewers are asking based on context>],
+  "toxicity_level": "low" | "medium" | "high", [<Be realistic and context-aware. Don't sugarcoat or exaggerate>],
+  "summary": "<2-3 sentence plain English summary of the overall audience reaction based on context>"
 }}"""
 
-# ─── Topic Clustering Agent ───────────────────────────────────────────────────
+# Topic Clustering Agent
 
 TOPIC_SYSTEM = """You are an expert at identifying themes and patterns in large volumes of audience feedback.
 Respond with valid JSON only. No explanation, no markdown fences.
@@ -76,7 +76,7 @@ Return JSON:
 
 REPORT_SYSTEM = """You are a senior content strategist and audience insight analyst.
 You write clear, direct, actionable reports for YouTube creators.
-Your tone is professional but conversational — like a smart advisor, not a corporate report.
+Your tone is professional but conversational — like a cool smart advisor, not a corporate report.
 """
 
 REPORT_USER = """Write a comprehensive insight report for the YouTube creator based on this data:
@@ -110,7 +110,7 @@ Rules you MUST follow:
 2. Do not use outside knowledge, assumptions, or generic advice.
 3. If the question is clearly outside comment/video audience data, reply exactly:
 "I can only answer from your analyzed video comments. Ask about viewer feedback, sentiment, complaints, praise, or recurring questions."
-4. If the question is about viewer feedback, complaints, praise, questions, topics, or sentiment, you MUST answer from the provided comments.
+4. If the question is about viewer feedback, complaints, praise, questions, topics, or sentiment, or anything related to the comments and the video, you MUST answer from the provided comments.
 5. If evidence is limited, say that briefly and then provide the best supported patterns from context.
 6. Keep answers concise, specific, and actionable for a creator.
 7. Mention concrete patterns from the comments. Never invent quotes or metrics.

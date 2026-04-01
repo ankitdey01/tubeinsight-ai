@@ -14,7 +14,7 @@ from loguru import logger
 
 # ─── Filters ──────────────────────────────────────────────────────────────────
 
-MIN_COMMENT_LENGTH = 4     # Skip very short comments like "nice", "👍"
+MIN_COMMENT_LENGTH = 3    # Skip very short comments like "nice", "👍"
 MAX_COMMENT_LENGTH = 1000  # Truncate very long comments
 
 SPAM_PATTERNS = [
@@ -127,7 +127,7 @@ def preprocess_comments(comments: List[Dict]) -> List[Dict]:
 
     logger.info(
         f"Preprocessing: {len(comments)} raw → {len(cleaned)} clean "
-        f"({skipped} filtered)"
+        f"({skipped} filtered out)"
     )
     return cleaned
 
