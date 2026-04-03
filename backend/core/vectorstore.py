@@ -151,7 +151,6 @@ class VectorStore:
         video_id: str,
         query_embedding: list[float],
         n_results: int = 15,
-        sentiment_filter: str = None,
     ) -> list[dict]:
         """
         Retrieve the most relevant comments for a query.
@@ -198,14 +197,6 @@ class VectorStore:
 
             scored = []
             for comment, emb in zip(comments, embeddings):
-                # Apply sentiment filter if specified
-                if sentiment_filter:
-                    comment_sentiment = comment.get("sentiment", "unknown")
-                    if sentiment_filter == "negative" and comment_sentiment not in ["negative", "hate", "angry"]:
-                        continue
-                    if sentiment_filter == "positive" and comment_sentiment not in ["positive", "praise", "love", "joy"]:
-                        continue
-                
                 emb_vec = np.array(emb, dtype=float)
                 denom = query_norm * np.linalg.norm(emb_vec)
                 similarity = float(np.dot(query_vec, emb_vec) / denom) if denom else 0.0
@@ -245,27 +236,18 @@ class VectorStore:
                 
             results = collection.query(
                 query_embeddings=[query_embedding],
-                n_results=min(n_results * 2 if sentiment_filter else n_results, count),  # Get more if filtering
+                n_results=min(n_results, count),
                 include=["documents", "metadatas", "distances"],
             )
-            
             logger.info(f"ChromaDB query returned {len(results.get('documents', [[]])[0])} results")
 
             output = []
             documents = results["documents"][0] if results["documents"] else []
             metadatas = results["metadatas"][0] if results["metadatas"] else []
             distances = results["distances"][0] if results["distances"] else []
-            
+
             for doc, meta, dist in zip(documents, metadatas, distances):
                 sentiment = meta.get("sentiment", "unknown") if meta else "unknown"
-                
-                # Apply sentiment filter
-                if sentiment_filter:
-                    if sentiment_filter == "negative" and sentiment not in ["negative", "hate", "angry"]:
-                        continue
-                    if sentiment_filter == "positive" and sentiment not in ["positive", "praise", "love", "joy"]:
-                        continue
-                
                 output.append(
                     {
                         "text": doc,
@@ -275,8 +257,6 @@ class VectorStore:
                         "relevance_score": round(1 - dist, 3),
                     }
                 )
-            
-            # Return only requested number after filtering
             return output[:n_results]
         except Exception as e:
             logger.error(f"Query failed for video {video_id}: {e}")

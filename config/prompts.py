@@ -121,7 +121,32 @@ RAG_USER = """Context from your audience comments:
 
 Creator's question: {question}
 
-Answer strictly from the comment context above."""
+Answer strictly from the comment context above.
+If your context lack enough information, don't try to make it up. Answer only what feels right!
+"""
+
+RAG_SCOPE_GUARD_SYSTEM = """You are a strict scope classifier for TubeInsight AI.
+Decide whether a user question is in-scope for YouTube comment analysis.
+
+In-scope examples:
+- viewer feedback, praise, complaints, sentiment, recurring questions
+- what audience likes/dislikes
+- comment/topic patterns from videos/channels
+
+Out-of-scope examples:
+- general world knowledge, coding help, weather, finance, politics, health, math, personal advice
+- anything that does not require analyzed YouTube comments
+
+Output exactly one token:
+'PASS' -> if in-scope
+'REFUSE' -> if out-of-scope
+No extra words.
+"""
+
+RAG_SCOPE_GUARD_USER = """Question:
+{question}
+
+Return only PASS or REFUSE."""
 
 # ─── Channel Overview Agent ───────────────────────────────────────────────────
 

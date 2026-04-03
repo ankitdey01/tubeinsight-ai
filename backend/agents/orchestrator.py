@@ -89,11 +89,11 @@ def run_sentiment_agent(state: PipelineState) -> dict:
         logger.warning("No comments available for sentiment analysis, skipping...")
         return {
             "sentiment_result": {
-                "overall_sentiment": "neutral",
+                "overall_sentiment": "unknown",
                 "sentiment_score": 0.0,
                 "sentiment_distribution": {"positive": 0, "negative": 0, "neutral": 100},
-                "vibe_score": 5,
-                "likeness_score": 5,
+                "vibe_score": 0,
+                "likeness_score": 0,
                 "comments_analyzed": 0,
                 "summary": "No comments available for analysis.",
             },
@@ -224,3 +224,95 @@ class TubeInsightPipeline:
             logger.error(f"❌ Pipeline failed: {final_state['errors']}")
 
         return final_state
+
+
+class TubeInsightPipelineWithProgress:
+    """Pipeline that yields progress updates for streaming."""
+    
+    def analyze_video_with_progress(
+        self,
+        video_url: str,
+        video_id: str,
+        max_comments: int | None = None,
+    ):
+        """
+        Generator that yields progress updates during analysis.
+        
+        Yields dicts with:
+        - type: "progress" or "result"
+        - For progress: stage, progress (0-100), message
+        - For result: data (final state)
+        """
+        logger.info(f"🚀 Starting TubeInsight pipeline with progress for {video_id}")
+        
+        state: PipelineState = {
+            "video_id": video_id,
+            "video_url": video_url,
+            "max_comments": max_comments,
+            "video_metadata": None,
+            "raw_comments": None,
+            "clean_comments": None,
+            "sentiment_result": None,
+            "topic_result": None,
+            "report": None,
+            "errors": [],
+            "status": "running",
+        }
+        
+        # Stage 1: Data Agent (15-35%)
+        yield {"type": "progress", "stage": "fetching_data", "progress": 15, "message": "Fetching comments..."}
+        
+        data_result = run_data_agent(state)
+        state.update(data_result)
+        
+        if state.get("status") == "failed":
+            yield {"type": "progress", "stage": "error", "progress": 0, "message": "Failed to fetch video data"}
+            yield {"type": "result", "data": state}
+            return
+        
+        comment_count = len(state.get("clean_comments", []))
+        yield {"type": "progress", "stage": "fetching_data", "progress": 35, "message": f"Fetched {comment_count} comments"}
+        
+        # Stage 2: Sentiment Agent (35-60%)
+        yield {"type": "progress", "stage": "analyzing_sentiment", "progress": 40, "message": "Analyzing sentiment..."}
+        
+        sentiment_result = run_sentiment_agent(state)
+        state.update(sentiment_result)
+        
+        if state.get("status") == "failed":
+            yield {"type": "progress", "stage": "error", "progress": 0, "message": "Sentiment analysis failed"}
+            yield {"type": "result", "data": state}
+            return
+        
+        yield {"type": "progress", "stage": "analyzing_sentiment", "progress": 60, "message": "Sentiment analysis complete"}
+        
+        # Stage 3: Topic Agent (60-80%)
+        yield {"type": "progress", "stage": "clustering_topics", "progress": 65, "message": "Discovering topics..."}
+        
+        topic_result = run_topic_agent(state)
+        state.update(topic_result)
+        
+        if state.get("status") == "failed":
+            yield {"type": "progress", "stage": "error", "progress": 0, "message": "Topic clustering failed"}
+            yield {"type": "result", "data": state}
+            return
+        
+        topic_count = len(state.get("topic_result", {}).get("topics", []))
+        yield {"type": "progress", "stage": "clustering_topics", "progress": 80, "message": f"Found {topic_count} topics"}
+        
+        # Stage 4: Report Agent (80-95%)
+        yield {"type": "progress", "stage": "generating_report", "progress": 85, "message": "Generating insights..."}
+        
+        report_result = run_report_agent(state)
+        state.update(report_result)
+        
+        if state.get("status") == "failed":
+            yield {"type": "progress", "stage": "error", "progress": 0, "message": "Report generation failed"}
+            yield {"type": "result", "data": state}
+            return
+        
+        yield {"type": "progress", "stage": "generating_report", "progress": 95, "message": "Finalizing report..."}
+        
+        # Done!
+        logger.success(f"✅ Pipeline with progress complete for {video_id}")
+        yield {"type": "result", "data": state}

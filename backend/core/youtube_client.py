@@ -23,6 +23,10 @@ from config.settings import get_settings
 settings = get_settings()
 
 
+class ChannelHasNoVideosError(ValueError):
+    """Raised when a valid channel has no videos available for analysis."""
+
+
 class YouTubeClient:
     """
     YouTube Data API v3 wrapper with built-in error handling.
@@ -48,7 +52,6 @@ class YouTubeClient:
         # Check for placeholder values
         if settings.youtube_api_key.startswith("your_") or settings.youtube_api_key == "":
             raise ValueError(
-                "YOUTUBE_API_KEY appears to be a placeholder value. "
                 "Please set a valid API key in your .env file."
             )
 
@@ -183,6 +186,11 @@ class YouTubeClient:
                 next_page_token = playlist_response.get("nextPageToken")
                 if not next_page_token:
                     break
+
+            if not videos:
+                raise ChannelHasNoVideosError(
+                    f"Channel '{channel_name}' has no public videos available for analysis."
+                )
 
             logger.success(f"Found {len(videos)} videos for {channel_name}")
             return videos[:max_results]

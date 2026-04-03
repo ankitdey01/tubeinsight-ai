@@ -7,20 +7,22 @@ Exposes the LangGraph agent pipeline and RAG chat as REST endpoints.
 """
 
 import sys
+import json
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Generator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from loguru import logger
 
 # Ensure project root is in path
 sys.path.insert(0, ".")
 
-from backend.core.youtube_client import YouTubeClient
-from backend.agents.orchestrator import TubeInsightPipeline
+from backend.core.youtube_client import YouTubeClient, ChannelHasNoVideosError
+from backend.agents.orchestrator import TubeInsightPipeline, TubeInsightPipelineWithProgress
 from backend.agents.rag_agent import RAGAgent
 
 
@@ -72,6 +74,15 @@ class ChannelVideosResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     status: str
+
+
+class ProgressEvent(BaseModel):
+    """Progress update event for SSE streaming."""
+    stage: str  # initializing, fetching_data, analyzing_sentiment, clustering_topics, generating_report, complete, error
+    progress: int  # 0-100
+    message: str
+    video_metadata: Optional[dict] = None  # Sent early so frontend can show thumbnail
+    partial_results: Optional[dict] = None  # Partial results as they become available
 
 
 # ─── Global State ─────────────────────────────────────────────────────────────
@@ -352,9 +363,17 @@ async def analyze_video(request: AnalyzeRequest):
             continue
     
     if not all_results:
+        if is_multi:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": "CHANNEL_NO_ANALYZABLE_VIDEOS",
+                    "message": "No analyzable videos were found for this channel selection.",
+                },
+            )
         raise HTTPException(
             status_code=500,
-            detail="Failed to analyze any videos. Please check the URLs and try again."
+            detail="Failed to analyze any videos. Please check the URL and try again."
         )
     
     # Store video_ids for RAG context
@@ -365,6 +384,137 @@ async def analyze_video(request: AnalyzeRequest):
     combined = combine_analysis_results(all_results, yt)
     
     return combined
+
+
+def generate_progress_events(
+    video_url: str,
+    video_id: str,
+    max_comments: int,
+    yt: YouTubeClient,
+) -> Generator[str, None, None]:
+    """Generate SSE progress events during video analysis."""
+    global _current_video_id, _current_video_ids
+    
+    def format_sse(data: dict) -> str:
+        return f"data: {json.dumps(data)}\n\n"
+    
+    try:
+        # Stage 1: Initializing - get video metadata first (fast)
+        yield format_sse({
+            "stage": "initializing",
+            "progress": 5,
+            "message": "Fetching video details...",
+        })
+        
+        # Fetch video metadata quickly
+        try:
+            video_metadata = yt.get_video_metadata(video_id)
+            yield format_sse({
+                "stage": "initializing",
+                "progress": 10,
+                "message": f"Found: {video_metadata.get('title', 'Video')}",
+                "video_metadata": {
+                    "title": video_metadata.get("title", "Unknown"),
+                    "views": video_metadata.get("view_count", 0),
+                    "likes": video_metadata.get("like_count", 0),
+                    "thumbnail": video_metadata.get("thumbnail", ""),
+                    "published_at": video_metadata.get("published_at", ""),
+                    "video_id": video_id,
+                    "url": video_url,
+                    "channel_name": video_metadata.get("channel_name", ""),
+                    "channel_id": video_metadata.get("channel_id", ""),
+                },
+            })
+        except Exception as e:
+            logger.warning(f"Failed to fetch video metadata early: {e}")
+        
+        # Stage 2: Run full pipeline with progress callbacks
+        pipeline = TubeInsightPipelineWithProgress()
+        
+        result = None
+        for update in pipeline.analyze_video_with_progress(
+            video_url=video_url,
+            video_id=video_id,
+            max_comments=max_comments,
+        ):
+            if update.get("type") == "progress":
+                yield format_sse({
+                    "stage": update["stage"],
+                    "progress": update["progress"],
+                    "message": update["message"],
+                })
+            elif update.get("type") == "result":
+                result = update["data"]
+        
+        if not result or result.get("status") == "failed":
+            yield format_sse({
+                "stage": "error",
+                "progress": 0,
+                "message": "Analysis failed. Please try again.",
+            })
+            return
+        
+        # Store for RAG context
+        _current_video_ids = [video_id]
+        _current_video_id = video_id
+        
+        # Combine and send final results
+        combined = combine_analysis_results([result], yt)
+        
+        yield format_sse({
+            "stage": "complete",
+            "progress": 100,
+            "message": "Analysis complete!",
+            "partial_results": combined,
+        })
+        
+    except Exception as e:
+        logger.exception("Progress streaming failed")
+        yield format_sse({
+            "stage": "error",
+            "progress": 0,
+            "message": f"Analysis failed: {str(e)}",
+        })
+
+
+@app.post("/analyze/stream")
+async def analyze_video_stream(request: AnalyzeRequest):
+    """
+    Stream video analysis progress using Server-Sent Events.
+    
+    Returns progress updates as the analysis proceeds, including
+    video metadata early so the frontend can display thumbnails.
+    """
+    yt = YouTubeClient()
+    
+    # Currently only supports single video for streaming
+    if not request.youtube_url:
+        raise HTTPException(
+            status_code=400,
+            detail="Please provide youtube_url for streaming analysis"
+        )
+    
+    video_id = yt.extract_video_id(request.youtube_url)
+    if not video_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Could not extract video ID from URL"
+        )
+    
+    return StreamingResponse(
+        generate_progress_events(
+            video_url=request.youtube_url,
+            video_id=video_id,
+            max_comments=request.max_comments or 100,
+            yt=yt,
+        ),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @app.post("/chat", response_model=ChatResponse)
@@ -443,7 +593,10 @@ async def get_channel_videos(request: ChannelVideosRequest):
         if not videos:
             raise HTTPException(
                 status_code=404,
-                detail="No videos found for this channel."
+                detail={
+                    "code": "CHANNEL_NO_VIDEOS",
+                    "message": "No videos found for this channel.",
+                },
             )
         
         return {
@@ -451,6 +604,14 @@ async def get_channel_videos(request: ChannelVideosRequest):
             "channel_name": videos[0]["channel_name"] if videos else "Unknown",
             "channel_id": channel_id,
         }
+    except ChannelHasNoVideosError as e:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "code": "CHANNEL_NO_VIDEOS",
+                "message": str(e),
+            },
+        )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:

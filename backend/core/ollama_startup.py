@@ -11,7 +11,7 @@ from loguru import logger
 from config.settings import get_settings
 
 
-def verify_ollama_connection(max_retries=10, retry_delay=1):
+def verify_ollama_connection(max_retries, retry_delay) -> bool:
     """
     Verify Ollama is accessible at configured URL.
     Returns True if successful, False otherwise.
@@ -60,7 +60,7 @@ def start_ollama():
     logger.info(f"🚀 Starting Ollama at {settings.ollama_base_url}...")
 
     # First check if Ollama is already running
-    if verify_ollama_connection(max_retries=2, retry_delay=0.5):
+    if verify_ollama_connection(max_retries=2, retry_delay=1):
         return True
 
     # Try to start Ollama
@@ -91,7 +91,6 @@ def start_ollama():
         logger.error(f"❌ Failed to start Ollama: {e}")
         return False
 
-
 def ensure_ollama_ready():
     """
     Main startup function: start Ollama and verify it's ready.
@@ -100,7 +99,7 @@ def ensure_ollama_ready():
     settings = get_settings()
 
     if not settings.ollama_base_url:
-        logger.info("Using OpenRouter API (Ollama not configured)")
+        logger.info("(Ollama not configured) to start")
         return True
 
     logger.info("=" * 60)
@@ -110,7 +109,7 @@ def ensure_ollama_ready():
     success = start_ollama()
 
     if not success:
-        logger.warning("⚠️  Could not verify Ollama connection")
+        logger.warning("⚠️ | Could not verify Ollama connection")
         logger.warning("The app will attempt to continue, but LLM features may fail")
 
     return success

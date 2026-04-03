@@ -8,25 +8,23 @@ print(f"[LOADING] {__file__}")
 
 from typing import List, Optional, Any
 from loguru import logger
-
-# Lazy loading of the model - only loaded when first used
-_model: Optional[Any] = None
-
+from config.settings import get_settings
 
 def _get_model() -> Any:
-    """Lazy load the sentence-transformer model."""
-    global _model
-    if _model is None:
+    """Lazy load the sentence-transformer model, using model name from settings."""
+    if not hasattr(_get_model, "_model"):
         logger.info("Loading sentence-transformer model (first time)...")
         try:
             from sentence_transformers import SentenceTransformer
-            # Use a lightweight but effective model
-            _model = SentenceTransformer('all-MiniLM-L6-v2')
+            settings = get_settings()
+            model_name = getattr(settings, "sentence_transformer_model", "all-MiniLM-L6-v2")
+            logger.info(f"Using sentence-transformer model: {model_name}")
+            _get_model._model = SentenceTransformer(model_name)
             logger.success("Sentence-transformer model loaded successfully")
         except ImportError:
             logger.error("sentence-transformers not installed. Run: pip install sentence-transformers")
             raise
-    return _model
+    return _get_model._model
 
 
 class EmbeddingClient:

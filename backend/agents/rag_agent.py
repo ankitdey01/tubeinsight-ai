@@ -8,13 +8,17 @@ Uses single-turn context to stay fully grounded.
 """
 print(f"[LOADING] {__file__}")
 
-import re
 from loguru import logger
 
 from backend.core.vectorstore import VectorStore
 from backend.core.embeddings import EmbeddingClient
 from backend.core.llm_client import LLMClient
-from config.prompts import RAG_SYSTEM, RAG_USER
+from config.prompts import (
+    RAG_SCOPE_GUARD_SYSTEM,
+    RAG_SCOPE_GUARD_USER,
+    RAG_SYSTEM,
+    RAG_USER,
+)
 
 
 class RAGAgent:
@@ -23,35 +27,6 @@ class RAGAgent:
         "Ask about viewer feedback, sentiment, complaints, praise, or recurring questions."
     )
     
-    # Sentiment-related keywords to detect sentiment queries
-    NEGATIVE_KEYWORDS = {
-        "hate", "hateful", "negative", "bad", "terrible", "awful", "worst", 
-        "horrible", "dislike", "angry", "mad", "upset", "complaint", "complain",
-        "criticism", "criticize", "toxic", "rude", "mean", "attack", "insult",
-        "disappointed", "frustrated", "annoying", "stupid", "dumb", "trash",
-        "garbage", "suck", "sucks", "hated", "hates"
-    }
-    
-    POSITIVE_KEYWORDS = {
-        "love", "loved", "like", "liked", "good", "great", "awesome", "amazing",
-        "excellent", "fantastic", "wonderful", "best", "perfect", "brilliant",
-        "outstanding", "superb", "incredible", "enjoy", "enjoyed", "appreciate",
-        "thank", "thanks", "grateful", "helpful", "useful", "informative"
-    }
-    
-    DOMAIN_HINTS = {
-        "viewer", "viewers", "audience", "comment", "comments", "feedback",
-        "sentiment", "complaint", "complaints", "praise", "praises", "question",
-        "questions", "topic", "topics", "reaction", "reactions", "like", "dislike",
-        "criticism", "criticisms", "vibe", "vibes", "video", "videos", "content",
-    }
-    OUTSIDE_HINTS = {
-        "weather", "temperature", "forecast", "rain", "climate", "humidity",
-        "stock", "stocks", "bitcoin", "crypto", "recipe", "code", "coding",
-        "python", "java", "javascript", "math", "physics", "history", "geography",
-        "president", "prime minister", "election", "news", "salary", "job",
-        "movie", "series", "football", "cricket", "nba", "ipl",
-    }
 
     def __init__(self):
         self.vs = VectorStore()
@@ -64,70 +39,6 @@ class RAGAgent:
         normalized = " ".join(text.strip().split()).lower()
         return normalized.startswith(self.REFUSAL_MESSAGE.lower())
 
-    def _detect_sentiment_filter(self, question: str) -> str | None:
-        """Detect if question is asking for positive/negative sentiment comments."""
-        q_lower = question.lower()
-        q_tokens = self._tokenize(q_lower)
-        
-        # Check for negative sentiment keywords
-        if any(token in self.NEGATIVE_KEYWORDS for token in q_tokens):
-            return "negative"
-        
-        # Check for positive sentiment keywords
-        if any(token in self.POSITIVE_KEYWORDS for token in q_tokens):
-            return "positive"
-        
-        # Check for phrases indicating sentiment request
-        negative_phrases = ["hateful", "mean comments", "bad comments", "negative comments", 
-                           "toxic comments", "hate comments", "worst comments", "angry comments"]
-        positive_phrases = ["loved comments", "praising comments", "good comments", 
-                           "positive comments", "appreciative comments"]
-        
-        for phrase in negative_phrases:
-            if phrase in q_lower:
-                return "negative"
-        
-        for phrase in positive_phrases:
-            if phrase in q_lower:
-                return "positive"
-        
-        return None
-
-    def _tokenize(self, text: str) -> set[str]:
-        stopwords = {
-            "the", "a", "an", "is", "are", "was", "were", "am", "be", "been", "being",
-            "to", "of", "for", "and", "or", "in", "on", "at", "with", "from", "by",
-            "what", "which", "who", "whom", "whose", "when", "where", "why", "how",
-            "my", "your", "their", "our", "this", "that", "these", "those", "it", "today",
-        }
-        tokens = re.findall(r"[a-z0-9]+", text.lower())
-        return {t for t in tokens if len(t) > 2 and t not in stopwords}
-
-    def _is_outside_comment_scope(self, question: str, retrieved: list[dict]) -> bool:
-        q_lower = question.lower()
-        q_tokens = self._tokenize(question)
-
-        has_domain_hint = any(hint in q_lower for hint in self.DOMAIN_HINTS)
-        has_outside_hint = any(hint in q_lower for hint in self.OUTSIDE_HINTS)
-
-        context_tokens = set()
-        for item in retrieved[:10]:
-            context_tokens.update(self._tokenize(item.get("text", "")))
-
-        overlap_ratio = 0.0
-        if q_tokens:
-            overlap_ratio = len(q_tokens & context_tokens) / len(q_tokens)
-
-        # Hard outside hint without any audience-analysis hint.
-        if has_outside_hint and not has_domain_hint and overlap_ratio < 0.2:
-            return True
-
-        # Generic question with no audience-domain signals and no lexical overlap.
-        if not has_domain_hint and overlap_ratio == 0 and len(q_tokens) <= 6:
-            return True
-
-        return False
-
     def _build_context(self, retrieved: list[dict]) -> str:
         """Format retrieved comments into LLM context block."""
         lines = []
@@ -135,6 +46,17 @@ class RAGAgent:
             like_info = f" [{item['like_count']} likes]" if item.get("like_count", 0) > 0 else ""
             lines.append(f"{i}. {item['text']}{like_info}")
         return "\n".join(lines)
+
+    def _is_question_in_scope(self, question: str) -> bool:
+        """Run a lightweight LLM classifier before retrieval to gate out-of-scope queries."""
+        decision = self.llm.complete(
+            user_prompt=RAG_SCOPE_GUARD_USER.format(question=question),
+            system_prompt=RAG_SCOPE_GUARD_SYSTEM,
+            max_tokens=5,
+            temperature=0.0,
+        )
+        normalized = (decision or "").strip().upper()
+        return normalized.startswith("PASS")
 
     def chat(
         self,
@@ -155,15 +77,9 @@ class RAGAgent:
         if not video_ids:
             return self.REFUSAL_MESSAGE
 
-        # Small-talk like "hello" should not trigger fabricated answers.
-        normalized = re.sub(r"[^a-z0-9\s]", "", question.lower()).strip()
-        if normalized in {"hi", "hello", "hey", "yo", "sup", "hola"}:
+        if not self._is_question_in_scope(question):
+            logger.info("RAGAgent: Pre-check marked question as out-of-scope")
             return self.REFUSAL_MESSAGE
-
-        # Detect sentiment filter from question
-        sentiment_filter = self._detect_sentiment_filter(question)
-        if sentiment_filter:
-            logger.info(f"RAGAgent: Detected sentiment filter '{sentiment_filter}' in question")
 
         logger.info(f"RAGAgent: Answering '{question[:80]}...' across {len(video_ids)} video(s)")
         logger.info(f"RAGAgent: Video IDs = {video_ids}")
@@ -179,7 +95,6 @@ class RAGAgent:
                 video_id=video_ids[0],
                 query_embedding=query_embedding,
                 n_results=n_results,
-                sentiment_filter=sentiment_filter,
             )
         else:
             logger.info(f"RAGAgent: Querying channel with {len(video_ids)} videos")
@@ -212,10 +127,6 @@ class RAGAgent:
         logger.info(f"RAGAgent: Retrieved {len(retrieved)} comments")
         if not retrieved:
             logger.warning(f"RAGAgent: No comments found for video_ids={video_ids}")
-            return self.REFUSAL_MESSAGE
-
-        if self._is_outside_comment_scope(question, retrieved):
-            logger.info("RAGAgent: Question detected as outside comment scope")
             return self.REFUSAL_MESSAGE
 
         # 3. Build context
@@ -264,9 +175,9 @@ class RAGAgent:
             )
             answer = self.llm.complete(
                 user_prompt=forced_user,
-                system_prompt="You are a comment-analysis assistant. Use only provided comments.",
+                system_prompt="You are a comment-analysis assistant. Use only provided comments for context.",
                 max_tokens=700,
-                temperature=0.2,
+                temperature=0.8,
             )
 
         if not answer or not answer.strip():
