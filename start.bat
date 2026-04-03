@@ -27,7 +27,7 @@ timeout /t 3 /nobreak >nul
 
 echo.
 echo [2/3] Starting Frontend on http://localhost:5173
-cd tubeinsight-frontend
+cd frontend
 start /b "Frontend" cmd /c "bun run dev 2>&1"
 cd ..
 
