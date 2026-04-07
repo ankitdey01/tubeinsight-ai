@@ -165,21 +165,21 @@ const Dashboard = () => {
 
         <nav className="flex-1 flex flex-col gap-2">
           <Button 
-            className={`w-full justify-start gap-3 ${view === "input" ? "bg-white/5 text-white" : "text-white/50 hover:text-white hover:bg-white/5"}`}
+            className={`w-full justify-start gap-3 !bg-transparent ${view === "input" ? "!bg-white/5 text-white hover:!bg-white/10" : "text-white/50 hover:text-white hover:!bg-white/5"}`}
             onClick={() => setView("input")}
           >
             <LayoutDashboard size={18} />
             Overview
           </Button>
           <Button 
-            className="w-full justify-start gap-3 text-white/50 hover:text-white hover:bg-white/5"
+            className="w-full justify-start gap-3 !bg-transparent text-white/50 hover:text-white hover:!bg-white/5"
             onClick={() => setShowHistory(true)}
           >
             <History size={18} />
             History
           </Button>
           <Button 
-            className="w-full justify-start gap-3 text-white/50 hover:text-white hover:bg-white/5"
+            className="w-full justify-start gap-3 !bg-transparent text-white/50 hover:text-white hover:!bg-white/5"
             onClick={() => setShowSettings(true)}
           >
             <Settings size={18} />
@@ -197,7 +197,7 @@ const Dashboard = () => {
               <span className="text-[10px] text-white/40 uppercase tracking-wider">Early Access</span>
             </div>
           </div>
-            <Button onClick={signOut} className="w-full justify-start gap-3 text-red-500/70 hover:text-red-500 hover:bg-red-500/10">
+            <Button onClick={signOut} className="w-full justify-start gap-3 bg-transparent text-red-500/70 hover:text-red-500 hover:bg-red-500/10">
             <LogOut size={18} />
             Sign Out
           </Button>
@@ -265,7 +265,7 @@ const Dashboard = () => {
                     
                     <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
                       <div className="flex items-center gap-2">
-                        <Button type="button" className="h-9 rounded-full px-3 gap-2 text-white/50 hover:text-white hover:bg-white/5">
+                        <Button type="button" className="h-9 rounded-full px-3 bg-transparent gap-2 text-white/50 hover:text-white hover:bg-white/5">
                           <Paperclip size={16} />
                           Attach
                         </Button>
@@ -320,7 +320,7 @@ const Dashboard = () => {
                     <Button
                       type="button"
                       onClick={handleResetChannelInput}
-                      className="h-8 px-3 text-xs text-red-100 hover:text-white hover:bg-red-500/20 border border-red-500/30"
+                      className="h-8 px-3 bg-transparent text-xs text-red-100 hover:text-white hover:bg-red-500/20 border border-red-500/30"
                     >
                       Try another channel
                     </Button>
@@ -331,7 +331,7 @@ const Dashboard = () => {
                         setChannelError(null);
                         setChannelErrorCode(null);
                       }}
-                      className="h-8 px-3 text-xs text-red-100 hover:text-white hover:bg-red-500/20 border border-red-500/30"
+                      className="h-8 px-3 bg-transparent text-xs text-red-100 hover:text-white hover:bg-red-500/20 border border-red-500/30"
                     >
                       Switch to Video mode
                     </Button>
@@ -361,7 +361,7 @@ const Dashboard = () => {
             <div className="mb-6">
               <Button
                 onClick={handleBackToInput}
-                className="text-white/50 hover:text-white hover:bg-white/5 -ml-4"
+                className="bg-transparent text-white/50 hover:text-white hover:bg-white/5 -ml-4"
                 disabled={isLoading && progress.stage !== 'error'}
               >
                 <ChevronLeft size={18} className="mr-1" />

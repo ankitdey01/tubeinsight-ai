@@ -11,44 +11,35 @@ print(f"[LOADING] {__file__}")
 SENTIMENT_SYSTEM = """You are an expert audience analyst specializing in YouTube creator communities.
 Your job is to analyze a batch of comments using AI-powered insights and return structured sentiment data.
 
-You MUST respond with valid JSON only. No explanation, no markdown fences.
+CRITICAL: You MUST respond with valid, complete JSON only. No explanation, no markdown fences, no truncation.
+Keep string values concise (under 100 characters each) to ensure complete output.
 """
 
-SENTIMENT_USER = """Analyze the following YouTube comments for the video titled: "{video_title}. Keep in mind that this is a YouTube video and the comments are from the audience, and provide insights based on context of the video title."
+SENTIMENT_USER = """Analyze the following YouTube comments for the video titled: "{video_title}". Keep in mind that this is a YouTube video and the comments are from the audience, and provide insights based on context of the video title.
 
 Comments:
 {comments}
 
-Return a JSON object with this exact structure:
+Return a JSON object with this exact structure (keep all string values brief and concise):
 {{
   "overall_sentiment": "positive" | "negative" | "neutral" | "mixed",
   "sentiment_score": <float -1.0 to 1.0>,
-  "sentiment_distribution": {{
-    "positive": <percentage 0-100>,
-    "negative": <percentage 0-100>,
-    "neutral": <percentage 0-100>
-  }},
-  "vibe_score": <int 1-10, overall energy/excitement level based on context and comments>,
-  "likeness_score": <int 1-10, how much viewers seem to enjoy the content based on context and comments>,
-  "emotion_breakdown": {{
-    "joy": <percentage>,
-    "anger": <percentage>,
-    "sadness": <percentage>,
-    "surprise": <percentage>,
-    "love": <percentage>,
-    "neutral": <percentage>
-  }},
-  "top_praises": [<list of up to 5 specific things viewers praised based on context>],
-  "top_criticisms": [<list of up to 5 specific things viewers criticized based on context>],
-  "top_questions": [<list of up to 5 questions viewers are asking based on context>],
-  "toxicity_level": "low" | "medium" | "high", [<Be realistic and context-aware. Don't sugarcoat or exaggerate>],
-  "summary": "<2-3 sentence plain English summary of the overall audience reaction based on context>"
+  "sentiment_distribution": {{"positive": <0-100>, "negative": <0-100>, "neutral": <0-100>}},
+  "vibe_score": <int 1-10>,
+  "likeness_score": <int 1-10>,
+  "emotion_breakdown": {{"joy": <0-100>, "anger": <0-100>, "sadness": <0-100>, "surprise": <0-100>, "love": <0-100>, "neutral": <0-100>}},
+  "top_praises": ["<brief praise 1>", "<brief praise 2>", "<brief praise 3>"],
+  "top_criticisms": ["<brief criticism 1>", "<brief criticism 2>", "<brief criticism 3>"],
+  "top_questions": ["<brief question 1>", "<brief question 2>", "<brief question 3>"],
+  "toxicity_level": "low" | "medium" | "high",
+  "summary": "<2 sentence summary>"
 }}"""
 
 # Topic Clustering Agent
 
 TOPIC_SYSTEM = """You are an expert at identifying themes and patterns in large volumes of audience feedback.
-Respond with valid JSON only. No explanation, no markdown fences.
+CRITICAL: Respond with valid, complete JSON only. No explanation, no markdown fences, no truncation.
+Keep descriptions brief (under 50 characters) and comments short (under 80 characters each).
 """
 
 TOPIC_USER = """Given these YouTube comment themes (already clustered by embeddings), 
@@ -58,16 +49,16 @@ Video: "{video_title}"
 Clusters:
 {clusters}
 
-Return JSON:
+Return JSON with BRIEF values:
 {{
   "topics": [
     {{
       "id": <cluster_id>,
-      "label": "<short theme name>",
-      "description": "<one sentence>",
+      "label": "<short theme name max 40 chars>",
+      "description": "<one brief sentence max 50 chars>",
       "sentiment": "positive" | "negative" | "neutral",
       "size": <number of comments>,
-      "representative_comments": [<up to 3 example comments>]
+      "representative_comments": [<up to 3 BRIEF examples max 80 chars each>]
     }}
   ]
 }}"""

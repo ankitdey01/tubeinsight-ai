@@ -23,9 +23,9 @@ class LLMClient:
     """
     Unified LLM client supporting both OpenRouter (cloud) and Ollama (local).
 
-    Automatically selects the backend based on configuration:
-    - If OLLAMA_BASE_URL is set, uses local Ollama
-    - Otherwise, uses OpenRouter with the configured API key
+    Uses settings.use_local_llm to determine which backend to use:
+    - True: Uses local Ollama
+    - False: Uses OpenRouter with the configured API key and model
 
     Features:
     - Automatic retry with exponential backoff for rate limits
@@ -34,28 +34,28 @@ class LLMClient:
     - Multi-turn conversation support for RAG
     """
     def __init__(self):
-        # Check if Ollama is configured
-        if settings.ollama_base_url:
+        self._use_ollama = settings.use_local_llm
+        
+        if self._use_ollama:
+            # Use local Ollama
             logger.info(f"Using local Ollama at {settings.ollama_base_url}")
             self.client = OpenAI(
                 base_url=f"{settings.ollama_base_url}/v1",
                 api_key="ollama",  # Ollama doesn't need a real API key
             )
             self.model = settings.ollama_model
-            self._use_ollama = True
         else:
-            # Use OpenRouter with OpenAI-compatible client
-            logger.info("Using OpenRouter API")
+            # Use OpenRouter API with llm_api_key and llm_model
+            logger.info(f"Using OpenRouter API with model: {settings.llm_model}")
             self.client = OpenAI(
                 base_url="https://openrouter.ai/api/v1",
-                api_key=settings.openrouter_api_key,
+                api_key=settings.llm_api_key,
                 default_headers={
                     "HTTP-Referer": "http://localhost:8504",
                     "X-Title": "TubeInsight AI",
                 }
             )
             self.model = settings.llm_model
-            self._use_ollama = False  # We're in the else branch, so Ollama is not configured
 
         self._last_request_time: float = 0
         self._min_delay = 0.5 if self._use_ollama else 1.0  # Faster for local Ollama
@@ -70,8 +70,8 @@ class LLMClient:
         self._last_request_time = time.time()
 
     @retry(
-        stop=stop_after_attempt(3 if settings.ollama_base_url else 5),
-        wait=wait_exponential(multiplier=1 if settings.ollama_base_url else 2, min=2, max=30),
+        stop=stop_after_attempt(3 if settings.use_local_llm else 5),
+        wait=wait_exponential(multiplier=1 if settings.use_local_llm else 2, min=2, max=30),
         retry=retry_if_exception_type(RateLimitError),
         reraise=True
     )
@@ -126,7 +126,7 @@ class LLMClient:
         try:
             return json.loads(clean)
         except json.JSONDecodeError as e:
-            logger.error(f"JSON parse failed: {e}\nRaw response:\n{raw[:500]}")
+            logger.error(f"JSON parse failed: {e}\nRaw response:\n{raw[:1000]}")
             raise ValueError(f"LLM returned invalid JSON: {e}")
 
     def complete_with_history(

@@ -59,7 +59,7 @@ class SentimentAgent:
         sample = sorted_comments[:100]
 
         # 2. Chunk and analyze with LLM
-        chunks = chunk_comments_for_llm(sample, max_chars=6000, max_per_chunk=40)
+        chunks = chunk_comments_for_llm(sample, max_chars=4000, max_per_chunk=30)
         chunk_results: List[Dict] = []
 
         for i, chunk_text in enumerate(chunks):
@@ -71,7 +71,7 @@ class SentimentAgent:
                         comments=chunk_text,
                     ),
                     system_prompt=SENTIMENT_SYSTEM,
-                    max_tokens=800,  # Reduced for rate limits
+                    max_tokens=100000,  # Large buffer to prevent truncation
                 )
                 chunk_results.append(result)
             except Exception as e:

@@ -12,11 +12,19 @@ from functools import lru_cache
 
 
 class Settings(BaseSettings):
+    # ── Local/API Toggle ─────────────────────────────────────────────────────
+    use_local_llm: bool = Field(True, env="use_local_llm")
+    use_local_embedding_model: bool = Field(True, env="use_local_embedding_model")
+    
     # ── Embedding Model ─────────────────────────────────────────────────────
     sentence_transformer_model: str = Field("all-MiniLM-L6-v2", env="SENTENCE_TRANSFORMER_MODEL")
+    nvidia_embedding_model: str = Field("nvidia/llama-nemotron-embed-vl-1b-v2:free", env="NVIDIA_EMBEDDING_MODEL")
+    embedding_api_key: str = Field("", env="embedding_api_key")
+    
     # ── API Keys ──────────────────────────────────────────────────────────────
     youtube_api_key: str = Field(env="YOUTUBE_API_KEY")
     openrouter_api_key: str = Field(env="OPENROUTER_API_KEY")  # Required unless using Ollama
+    llm_api_key: str = Field("", env="llm_api_key")
 
     # ── Model Config ──────────────────────────────────────────────────────────
     # Set OLLAMA_BASE_URL to use local Ollama instead of OpenRouter

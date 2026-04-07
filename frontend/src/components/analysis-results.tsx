@@ -71,7 +71,7 @@ export function AnalysisResults({ results }: AnalysisResultsProps) {
               <CardTitle className="text-white flex items-center gap-2"><Smile className="w-5 h-5 text-red-500" />Sentiment Overview</CardTitle>
               <CardDescription className="text-white/50">Overall audience reaction</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="space-y-6 py-6">
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-white/70">Overall Sentiment</span>
@@ -79,18 +79,39 @@ export function AnalysisResults({ results }: AnalysisResultsProps) {
                 </div>
                 <Progress value={sentimentPercentage} className="h-2" />
               </div>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="bg-white/5 rounded-lg p-3 text-center">
+              <div className="grid grid-cols-3 gap-4 mt-4">
+                <div className="bg-white/5 rounded-lg p-4 text-center">
                   <div className="text-2xl font-bold text-red-500">{sentiment.vibe_score}/10</div>
-                  <div className="text-xs text-white/50">Vibe</div>
+                  <div className="text-xs text-white/50 mt-1">Vibe</div>
                 </div>
-                <div className="bg-white/5 rounded-lg p-3 text-center">
+                <div className="bg-white/5 rounded-lg p-4 text-center">
                   <div className="text-2xl font-bold text-red-500">{sentiment.likeness_score}/10</div>
-                  <div className="text-xs text-white/50">Likeness</div>
+                  <div className="text-xs text-white/50 mt-1">Likeness</div>
                 </div>
-                <div className={`text-2xl font-bold capitalize text-center ${getToxicityColor(sentiment.toxicity_level)}`}>
+                <div className={`bg-white/5 rounded-lg p-4 text-2xl font-bold capitalize text-center ${getToxicityColor(sentiment.toxicity_level)}`}>
                   <div>{sentiment.toxicity_level}</div>
-                  <div className="text-xs text-white/50 font-normal">Toxicity</div>
+                  <div className="text-xs text-white/50 font-normal mt-1">Toxicity</div>
+                </div>
+              </div>
+              {/* Sentiment Distribution Below */}
+              <div className="grid grid-cols-3 gap-4 mt-6">
+                <div className="bg-white/5 rounded-lg p-4 text-center">
+                  <div className="text-2xl font-bold text-green-500">
+                    {sentiment.sentiment_distribution?.positive || 0}%
+                  </div>
+                  <div className="text-xs text-white/50 mt-1">Positive</div>
+                </div>
+                <div className="bg-white/5 rounded-lg p-4 text-center">
+                  <div className="text-2xl font-bold text-red-500">
+                    {sentiment.sentiment_distribution?.negative || 0}%
+                  </div>
+                  <div className="text-xs text-white/50 mt-1">Negative</div>
+                </div>
+                <div className="bg-white/5 rounded-lg p-4 text-center">
+                  <div className="text-2xl font-bold text-yellow-500">
+                    {sentiment.sentiment_distribution?.neutral || 0}%
+                  </div>
+                  <div className="text-xs text-white/50 mt-1">Neutral</div>
                 </div>
               </div>
             </CardContent>

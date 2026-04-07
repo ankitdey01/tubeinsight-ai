@@ -51,40 +51,6 @@ export function SentimentTab({ sentiment }: SentimentTabProps) {
 
   return (
     <div className="space-y-8">
-      {/* Sentiment Overview Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="bg-zinc-900/60 border-white/10">
-          <CardContent className="p-4 text-center">
-            <div className="text-3xl font-bold text-green-500">
-              {sentiment.sentiment_distribution?.positive || 0}%
-            </div>
-            <div className="text-xs text-white/50 mt-1">Positive</div>
-          </CardContent>
-        </Card>
-        <Card className="bg-zinc-900/60 border-white/10">
-          <CardContent className="p-4 text-center">
-            <div className="text-3xl font-bold text-red-500">
-              {sentiment.sentiment_distribution?.negative || 0}%
-            </div>
-            <div className="text-xs text-white/50 mt-1">Negative</div>
-          </CardContent>
-        </Card>
-        <Card className="bg-zinc-900/60 border-white/10">
-          <CardContent className="p-4 text-center">
-            <div className="text-3xl font-bold text-yellow-500">
-              {sentiment.sentiment_distribution?.neutral || 0}%
-            </div>
-            <div className="text-xs text-white/50 mt-1">Neutral</div>
-          </CardContent>
-        </Card>
-        <Card className="bg-zinc-900/60 border-white/10">
-          <CardContent className="p-4 text-center">
-            <div className="text-3xl font-bold text-red-400">{sentiment.vibe_score}/10</div>
-            <div className="text-xs text-white/50 mt-1">Vibe Score</div>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Charts Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Sentiment Distribution Pie Chart */}

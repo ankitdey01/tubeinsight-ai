@@ -125,7 +125,7 @@ class TopicAgent:
                     clusters=clusters_text,
                 ),
                 system_prompt=TOPIC_SYSTEM,
-                max_tokens=1200,
+                max_tokens=100000,  # Large buffer to prevent truncation
             )
             logger.success(f"TopicAgent: Identified {len(result.get('topics', []))} topics")
             return result

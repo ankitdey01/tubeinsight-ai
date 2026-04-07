@@ -14,8 +14,6 @@ from backend.core.vectorstore import VectorStore
 from backend.core.embeddings import EmbeddingClient
 from backend.core.llm_client import LLMClient
 from config.prompts import (
-    RAG_SCOPE_GUARD_SYSTEM,
-    RAG_SCOPE_GUARD_USER,
     RAG_SYSTEM,
     RAG_USER,
 )
@@ -47,17 +45,6 @@ class RAGAgent:
             lines.append(f"{i}. {item['text']}{like_info}")
         return "\n".join(lines)
 
-    def _is_question_in_scope(self, question: str) -> bool:
-        """Run a lightweight LLM classifier before retrieval to gate out-of-scope queries."""
-        decision = self.llm.complete(
-            user_prompt=RAG_SCOPE_GUARD_USER.format(question=question),
-            system_prompt=RAG_SCOPE_GUARD_SYSTEM,
-            max_tokens=5,
-            temperature=0.0,
-        )
-        normalized = (decision or "").strip().upper()
-        return normalized.startswith("PASS")
-
     def chat(
         self,
         question: str,
@@ -75,10 +62,6 @@ class RAGAgent:
             conversation_history: Previous messages for context memory
         """
         if not video_ids:
-            return self.REFUSAL_MESSAGE
-
-        if not self._is_question_in_scope(question):
-            logger.info("RAGAgent: Pre-check marked question as out-of-scope")
             return self.REFUSAL_MESSAGE
 
         logger.info(f"RAGAgent: Answering '{question[:80]}...' across {len(video_ids)} video(s)")

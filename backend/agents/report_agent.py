@@ -62,7 +62,7 @@ class ReportAgent:
                     topic_data=json.dumps(topics, indent=2),
                 ),
                 system_prompt=REPORT_SYSTEM,
-                max_tokens=1200,
+                max_tokens=10000,  # Large buffer for comprehensive reports
                 temperature=0.4,  # Slightly more creative for narrative writing
             )
             logger.success("ReportAgent: Report generated")
